@@ -1,3 +1,12 @@
+"""
+Unit Converter CLI Application
+Author: [Adrian Kiptoo]
+Date: [31st June 2025]
+
+A simple command-line tool for unit conversions with user management.
+Uses SQLAlchemy for database operations.
+"""
+
 import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,131 +15,148 @@ from lib.db.models import Base, User, Conversion
 from lib.helpers import get_conversion_result
 
 engine = create_engine('sqlite:///unit_converter.db')
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-
+Base.metadata.create_all(engine) 
+Session = sessionmaker(bind=engine) 
 
 def get_valid_choice(prompt, options):
+    """Keeps asking until we get a valid choice"""
     while True:
         choice = input(prompt).strip()
         if choice in options:
             return choice
-        print(f"Invalid choice. Please enter one of {options}.")
-
+        print(f"Oops! Please choose one of these: {options}")
 
 def get_valid_float(prompt):
+    """Makes sure we get a proper number"""
     while True:
         val = input(prompt).strip()
         try:
             return float(val)
         except ValueError:
-            print("Invalid number. Please enter a valid numeric value.")
-
+            print("That's not a valid number. Try again please.")
 
 def main_menu():
+    """Handles the main program flow"""
     session = Session()
-    while True:
-        print("\n=== Unit Converter CLI ===")
-        print("1. Manage Users")
-        print("2. Perform Conversion")
-        print("3. View User Conversion History")
-        print("4. Exit")
+    try:
+        while True:
+            print("\n=== Unit Converter ===")
+            print("What would you like to do?")
+            print("1. Manage Users")
+            print("2. Do a Conversion")
+            print("3. Check Conversion History")
+            print("4. Quit")
 
-        choice = get_valid_choice("Select an option: ", ['1', '2', '3', '4'])
+            choice = get_valid_choice("Your choice: ", ['1', '2', '3', '4'])
 
-        if choice == '1':
-            manage_users(session)
-        elif choice == '2':
-            perform_conversion(session)
-        elif choice == '3':
-            view_conversion_history(session)
-        elif choice == '4':
-            print("Goodbye!")
-            session.close()
-            sys.exit()
-
+            if choice == '1':
+                manage_users(session)
+            elif choice == '2':
+                perform_conversion(session)
+            elif choice == '3':
+                view_conversion_history(session)
+            elif choice == '4':
+                print("Thanks for using the converter! Goodbye!")
+                session.close()
+                sys.exit()
+    except Exception as e:
+        print(f"Hehehe! Something went wrong: {e}")
+        session.close()
 
 def manage_users(session):
+    """Handles all the user-related operations"""
     while True:
-        print("\n--- Manage Users ---")
-        print("1. Create User")
-        print("2. Delete User")
-        print("3. List All Users")
-        print("4. Find User by ID")
-        print("5. Return to Main Menu")
+        print("\n--- User Manager ---")
+        print("Options:")
+        print("1. Add New User")
+        print("2. Remove User")
+        print("3. Show All Users")
+        print("4. Find Specific User")
+        print("5. Back to Main Menu")
 
-        choice = get_valid_choice("Select an option: ", ['1', '2', '3', '4', '5'])
+        choice = get_valid_choice("Pick an option (1-5): ", ['1', '2', '3', '4', '5'])
 
         if choice == '1':
-            name = input("Enter new user name: ").strip()
-            if name:
-                try:
-                    user = User.create(session, name=name)
-                    print(f"User created: {user}")
-                except Exception as e:
-                    print(f"Error: {e}")
-            else:
-                print("Name cannot be empty.")
+            name = input("What's the new user's name? ").strip()
+            if not name:
+                print("Wee bana, tunahitaji jina!")
+                continue
+                
+            try:
+                user = User.create(session, name=name)
+                print(f"Success! Created user: {user.name} (ID: {user.id})")
+            except Exception as e:
+                print(f"Uh oh, couldn't create user: {e}")
+        
         elif choice == '2':
-            user_id = input("Enter user ID to delete: ").strip()
-            if user_id.isdigit():
-                user = User.find_by_id(session, int(user_id))
-                if user:
-                    confirm = input(f"Are you sure you want to delete user '{user.name}'? (y/n): ").lower()
-                    if confirm == 'y':
-                        user.delete(session)
-                        print("User deleted.")
-                else:
-                    print("User not found.")
+            user_id = input("Which user ID to remove? ").strip()
+            if not user_id.isdigit():
+                print("That doesn't look like a valid ID")
+                continue
+                
+            user = User.find_by_id(session, int(user_id))
+            if not user:
+                print("Can't find that user, sorry!")
+                continue
+                
+            confirm = input(f"Really delete {user.name}? (y/n): ").lower()
+            if confirm == 'y':
+                user.delete(session)
+                print("User deleted.")
             else:
-                print("Invalid user ID.")
+                print("Phew, that was close!")
+        
         elif choice == '3':
             users = User.get_all(session)
-            if users:
-                print("\nUsers:")
-                for user in users:
-                    print(f"ID: {user.id}, Name: {user.name}")
-            else:
-                print("No users found.")
+            if not users:
+                print("No users yet - the system feels lonely!")
+                continue
+                
+            print("\nCurrent Users:")
+            for user in users:
+                print(f"  {user.id}: {user.name}")
+        
         elif choice == '4':
             user_id = input("Enter user ID to find: ").strip()
-            if user_id.isdigit():
-                user = User.find_by_id(session, int(user_id))
-                if user:
-                    print(f"Found user: ID={user.id}, Name={user.name}")
-                else:
-                    print("User not found.")
+            if not user_id.isdigit():
+                print("IDs are numbers, try again")
+                continue
+                
+            user = User.find_by_id(session, int(user_id))
+            if user:
+                print(f"Found: {user.name} (ID: {user.id})")
             else:
-                print("Invalid user ID.")
+                print("No user with that ID exists")
+        
         elif choice == '5':
             break
 
-
 def perform_conversion(session):
+    """Handles the unit conversion process"""
     users = User.get_all(session)
     if not users:
-        print("No users found. Please create a user first.")
+        print("No users exist yet - create one first!")
         return
 
-    print("\nSelect user for this conversion:")
+    print("\nWho's doing this conversion?")
     for user in users:
         print(f"{user.id}. {user.name}")
 
     user_id = input("Enter user ID: ").strip()
     if not user_id.isdigit():
-        print("Invalid user ID.")
+        print("That's not a valid ID number")
         return
 
     user = User.find_by_id(session, int(user_id))
     if not user:
-        print("User not found.")
+        print("Couldn't find that user")
         return
 
-    print("\nSelect conversion type:")
-    print("1. lbs to kg")
-    print("2. kg to lbs")
-    print("3. inches to cm")
-    print("4. cm to inches")
+    print("\nWhat kind of conversion?")
+    print("1. Pounds to Kilograms")
+    print("2. Kilograms to Pounds")
+    print("3. Inches to Centimeters")
+    print("4. Centimeters to Inches")
 
     conversion_map = {
         '1': ("lbs_to_kg", "lbs", "kg"),
@@ -139,62 +165,65 @@ def perform_conversion(session):
         '4': ("cm_to_in", "cm", "inches")
     }
 
-    conv_choice = get_valid_choice("Select an option: ", conversion_map.keys())
+    conv_choice = get_valid_choice("Your choice (1-4): ", conversion_map.keys())
     conv_type, unit_in, unit_out = conversion_map[conv_choice]
 
-    input_value = get_valid_float(f"Enter the value to convert ({unit_in}): ")
+    input_value = get_valid_float(f"Enter value in {unit_in}: ")
 
     try:
         result = get_conversion_result(conv_type, input_value)
-        conversion_record = Conversion.create(session,
-                                             conversion_type=conv_type,
-                                             input_value=input_value,
-                                             result_value=result,
-                                             user_id=user.id)
-        print(f"Conversion result: {input_value:.2f} {unit_in} -> {result:.2f} {unit_out}")
-        print(f"Conversion saved for user '{user.name}'.")
+        Conversion.create(
+            session,
+            conversion_type=conv_type,
+            input_value=input_value,
+            result_value=result,
+            user_id=user.id
+        )
+        print(f"\nResult: {input_value:.2f} {unit_in} = {result:.2f} {unit_out}")
+        print(f"(Saved to {user.name}'s history)")
     except ValueError as e:
-        print(f"Conversion error: {e}")
-
+        print(f"Conversion failed: {e}")
 
 def view_conversion_history(session):
+    """Shows previous conversions for a user"""
     users = User.get_all(session)
     if not users:
-        print("No users found.")
+        print("No users in the system yet!")
         return
 
-    print("\nSelect user to view conversion history:")
+    print("\nWhose history should we check?")
     for user in users:
         print(f"{user.id}. {user.name}")
 
     user_id = input("Enter user ID: ").strip()
     if not user_id.isdigit():
-        print("Invalid user ID.")
+        print("IDs are numbers, remember?")
         return
 
     user = User.find_by_id(session, int(user_id))
     if not user:
-        print("User not found.")
+        print("No user with that ID")
         return
 
     if not user.conversions:
-        print(f"No conversions found for user '{user.name}'.")
+        print(f"\n{user.name} hasn't done any conversions yet!")
         return
 
-    print(f"\nConversion history for user '{user.name}':")
+    print(f"\n{user.name}'s Conversion History:")
     for conv in user.conversions:
-        unit_in, unit_out = "", ""
         if conv.conversion_type == "lbs_to_kg":
-            unit_in, unit_out = "lbs", "kg"
+            units = ("lbs", "kg")
         elif conv.conversion_type == "kg_to_lbs":
-            unit_in, unit_out = "kg", "lbs"
+            units = ("kg", "lbs")
         elif conv.conversion_type == "in_to_cm":
-            unit_in, unit_out = "inches", "cm"
+            units = ("inches", "cm")
         elif conv.conversion_type == "cm_to_in":
-            unit_in, unit_out = "cm", "inches"
-
-        print(f"ID: {conv.id}, {conv.input_value:.2f} {unit_in} -> {conv.result_value:.2f} {unit_out}")
-
+            units = ("cm", "inches")
+        else:
+            units = ("?", "?")
+            
+        print(f"  {conv.input_value:.2f} {units[0]} → {conv.result_value:.2f} {units[1]}")
 
 if __name__ == '__main__':
+    print("Welcome to the Unit Converter!")
     main_menu()
