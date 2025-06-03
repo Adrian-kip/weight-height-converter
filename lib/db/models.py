@@ -1,9 +1,20 @@
+# In your models.py (or wherever your models are defined)
+
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Table
 from sqlalchemy.orm import declarative_base, relationship, validates
 from sqlalchemy.exc import SQLAlchemyError
 
 Base = declarative_base()
+
+# Association table for the many-to-many relationship
+favorite_conversions = Table(
+    'favorite_conversions',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
+    Column('conversion_id', Integer, ForeignKey('conversions.id'), primary_key=True),
+    Column('created_at', DateTime, default=datetime.utcnow)
+)
 
 class User(Base):
     __tablename__ = 'users'
@@ -13,6 +24,11 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)  
     
     conversions = relationship("Conversion", back_populates="user", cascade="all, delete-orphan")
+    favorite_conversions = relationship(
+        "Conversion",
+        secondary=favorite_conversions,
+        back_populates="favorited_by"
+    )
 
     def __repr__(self):
         return f"User #{self.id}: {self.name}"
@@ -61,6 +77,19 @@ class User(Base):
         session.delete(self)
         session.commit()
 
+    def add_favorite(self, session, conversion):
+        if conversion not in self.favorite_conversions:
+            self.favorite_conversions.append(conversion)
+            session.commit()
+            return True
+        return False
+
+    def remove_favorite(self, session, conversion):
+        if conversion in self.favorite_conversions:
+            self.favorite_conversions.remove(conversion)
+            session.commit()
+            return True
+        return False
 
 class Conversion(Base):
     __tablename__ = 'conversions'
@@ -75,6 +104,11 @@ class Conversion(Base):
     output_unit = Column(String(10)) 
 
     user = relationship("User", back_populates="conversions")
+    favorited_by = relationship(
+        "User",
+        secondary=favorite_conversions,
+        back_populates="favorite_conversions"
+    )
 
     def __repr__(self):
         return f"Conversion: {self.input_value}{self.input_unit}→{self.result_value}{self.output_unit} ({self.conversion_type})"
@@ -126,7 +160,7 @@ class Conversion(Base):
         return session.query(cls).filter_by(user_id=user_id).order_by(cls.created_at.desc()).all()
 
     @classmethod
-    def get_recent(cls, session, limit=5):  # New method
+    def get_recent(cls, session, limit=5):
         return session.query(cls).order_by(cls.created_at.desc()).limit(limit).all()
 
     def undo(self, session):

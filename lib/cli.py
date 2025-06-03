@@ -33,6 +33,13 @@ def get_valid_float(prompt):
         except ValueError:
             print("That's not a valid number. Try again please.")
 
+def get_valid_int(prompt):
+    while True:
+        val = input(prompt).strip()
+        if val.isdigit():
+            return int(val)
+        print("Please enter a valid integer.")
+
 def main_menu():
     session = Session()
     try:
@@ -42,9 +49,10 @@ def main_menu():
             print("1. Manage Users")
             print("2. Do a Conversion")
             print("3. Check Conversion History")
-            print("4. Quit")
+            print("4. Manage Favorites")
+            print("5. Quit")
 
-            choice = get_valid_choice("Your choice: ", ['1', '2', '3', '4'])
+            choice = get_valid_choice("Your choice: ", ['1', '2', '3', '4', '5'])
 
             if choice == '1':
                 manage_users(session)
@@ -53,11 +61,13 @@ def main_menu():
             elif choice == '3':
                 view_conversion_history(session)
             elif choice == '4':
+                manage_favorites_menu(session)
+            elif choice == '5':
                 print("Thanks for using the converter! Goodbye!")
                 session.close()
                 sys.exit()
     except Exception as e:
-        print(f"Hehehe! Something went wrong: {e}")
+        print(f"Something went wrong: {e}")
         session.close()
 
 def manage_users(session):
@@ -76,14 +86,14 @@ def manage_users(session):
         if choice == '1':
             name = input("What's the new user's name? ").strip()
             if not name:
-                print("Wee bana, tunahitaji jina!")
+                print("Name cannot be empty!")
                 continue
                 
             try:
                 user = User.create(session, name=name)
                 print(f"Success! Created user: {user.name} (ID: {user.id})")
             except Exception as e:
-                print(f"Uh oh, couldn't create user: {e}")
+                print(f"Couldn't create user: {e}")
         
         elif choice == '2':
             user_id = input("Which user ID to remove? ").strip()
@@ -101,12 +111,12 @@ def manage_users(session):
                 user.delete(session)
                 print("User deleted.")
             else:
-                print("Phew, that was close!")
+                print("Operation cancelled.")
         
         elif choice == '3':
             users = User.get_all(session)
             if not users:
-                print("No users yet - Seriously!")
+                print("No users yet!")
                 continue
                 
             print("\nCurrent Users:")
@@ -138,12 +148,8 @@ def perform_conversion(session):
     for user in users:
         print(f"{user.id}. {user.name}")
 
-    user_id = input("Enter user ID: ").strip()
-    if not user_id.isdigit():
-        print("That's not a valid ID number")
-        return
-
-    user = User.find_by_id(session, int(user_id))
+    user_id = get_valid_int("Enter user ID: ")
+    user = User.find_by_id(session, user_id)
     if not user:
         print("Couldn't find that user")
         return
@@ -168,7 +174,7 @@ def perform_conversion(session):
 
     try:
         result = get_conversion_result(conv_type, input_value)
-        Conversion.create(
+        conversion = Conversion.create(
             session,
             conversion_type=conv_type,
             input_value=input_value,
@@ -177,6 +183,13 @@ def perform_conversion(session):
         )
         print(f"\nResult: {input_value:.2f} {unit_in} = {result:.2f} {unit_out}")
         print(f"(Saved to {user.name}'s history)")
+        
+        # Ask if user wants to favorite this conversion
+        favorite = input("Would you like to favorite this conversion? (y/n): ").lower()
+        if favorite == 'y':
+            user.add_favorite(session, conversion)
+            print("Added to favorites!")
+            
     except ValueError as e:
         print(f"Conversion failed: {e}")
 
@@ -190,12 +203,8 @@ def view_conversion_history(session):
     for user in users:
         print(f"{user.id}. {user.name}")
 
-    user_id = input("Enter user ID: ").strip()
-    if not user_id.isdigit():
-        print("IDs are numbers, remember?")
-        return
-
-    user = User.find_by_id(session, int(user_id))
+    user_id = get_valid_int("Enter user ID: ")
+    user = User.find_by_id(session, user_id)
     if not user:
         print("No user with that ID")
         return
@@ -217,7 +226,106 @@ def view_conversion_history(session):
         else:
             units = ("?", "?")
             
-        print(f"  {conv.input_value:.2f} {units[0]} → {conv.result_value:.2f} {units[1]}")
+        favorite_indicator = "★" if conv in user.favorite_conversions else ""
+        print(f"  {conv.id}: {conv.input_value:.2f} {units[0]} → {conv.result_value:.2f} {units[1]} {favorite_indicator}")
+
+def manage_favorites_menu(session):
+    users = User.get_all(session)
+    if not users:
+        print("No users in the system yet!")
+        return
+
+    print("\nSelect a user to manage favorites:")
+    for user in users:
+        print(f"{user.id}. {user.name}")
+
+    user_id = get_valid_int("Enter user ID: ")
+    user = User.find_by_id(session, user_id)
+    if not user:
+        print("No user with that ID")
+        return
+
+    manage_favorites(session, user)
+
+def manage_favorites(session, user):
+    while True:
+        print(f"\n--- {user.name}'s Favorite Conversions ---")
+        print("1. View Favorites")
+        print("2. Add Favorite")
+        print("3. Remove Favorite")
+        print("4. Back to Main Menu")
+        
+        choice = get_valid_choice("Pick an option (1-4): ", ['1', '2', '3', '4'])
+        
+        if choice == '1':
+            if not user.favorite_conversions:
+                print("\nNo favorite conversions yet!")
+                continue
+                
+            print("\nFavorite Conversions:")
+            for conv in user.favorite_conversions:
+                units = get_conversion_units(conv.conversion_type)
+                print(f"  {conv.id}: {conv.input_value:.2f}{units[0]} → {conv.result_value:.2f}{units[1]}")
+                
+        elif choice == '2':
+            if not user.conversions:
+                print("No conversions to favorite yet!")
+                continue
+                
+            print("\nAvailable Conversions:")
+            for conv in user.conversions:
+                if conv not in user.favorite_conversions:
+                    units = get_conversion_units(conv.conversion_type)
+                    print(f"  {conv.id}: {conv.input_value:.2f}{units[0]} → {conv.result_value:.2f}{units[1]}")
+            
+            conv_id = get_valid_int("\nEnter conversion ID to favorite: ")
+            conversion = session.get(Conversion, conv_id)
+            
+            if not conversion:
+                print("No conversion found with that ID")
+                continue
+                
+            if conversion not in user.conversions:
+                print("That conversion doesn't belong to this user")
+                continue
+                
+            if user.add_favorite(session, conversion):
+                print("Added to favorites!")
+            else:
+                print("This conversion is already in your favorites")
+                
+        elif choice == '3':
+            if not user.favorite_conversions:
+                print("No favorites to remove!")
+                continue
+                
+            print("\nCurrent Favorites:")
+            for conv in user.favorite_conversions:
+                units = get_conversion_units(conv.conversion_type)
+                print(f"  {conv.id}: {conv.input_value:.2f}{units[0]} → {conv.result_value:.2f}{units[1]}")
+            
+            conv_id = get_valid_int("\nEnter conversion ID to remove from favorites: ")
+            conversion = session.get(Conversion, conv_id)
+            
+            if not conversion:
+                print("No conversion found with that ID")
+                continue
+                
+            if user.remove_favorite(session, conversion):
+                print("Removed from favorites")
+            else:
+                print("This conversion wasn't in your favorites")
+                
+        elif choice == '4':
+            break
+
+def get_conversion_units(conv_type):
+    return {
+        'lbs_to_kg': ('lbs', 'kg'),
+        'kg_to_lbs': ('kg', 'lbs'),
+        'in_to_cm': ('inches', 'cm'),
+        'cm_to_in': ('cm', 'inches')
+    }.get(conv_type, ('?', '?'))
 
 if __name__ == '__main__':
     print("Welcome to the Unit Converter!")
