@@ -23,10 +23,6 @@ def cm_to_inches(cm):
         raise ValueError("Input must be a number.")
 
 def get_conversion_result(conversion_type, value):
-    """
-    Takes a conversion type (string) and value (float),
-    returns the converted result or raises a ValueError.
-    """
     if conversion_type == "lbs_to_kg":
         return lbs_to_kg(value)
     elif conversion_type == "kg_to_lbs":

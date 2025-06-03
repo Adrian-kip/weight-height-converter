@@ -19,7 +19,6 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine) 
 
 def get_valid_choice(prompt, options):
-    """Keeps asking until we get a valid choice"""
     while True:
         choice = input(prompt).strip()
         if choice in options:
@@ -27,7 +26,6 @@ def get_valid_choice(prompt, options):
         print(f"Oops! Please choose one of these: {options}")
 
 def get_valid_float(prompt):
-    """Makes sure we get a proper number"""
     while True:
         val = input(prompt).strip()
         try:
@@ -36,7 +34,6 @@ def get_valid_float(prompt):
             print("That's not a valid number. Try again please.")
 
 def main_menu():
-    """Handles the main program flow"""
     session = Session()
     try:
         while True:
@@ -109,7 +106,7 @@ def manage_users(session):
         elif choice == '3':
             users = User.get_all(session)
             if not users:
-                print("No users yet - the system feels lonely!")
+                print("No users yet - Seriously!")
                 continue
                 
             print("\nCurrent Users:")
@@ -132,7 +129,6 @@ def manage_users(session):
             break
 
 def perform_conversion(session):
-    """Handles the unit conversion process"""
     users = User.get_all(session)
     if not users:
         print("No users exist yet - create one first!")
@@ -185,7 +181,6 @@ def perform_conversion(session):
         print(f"Conversion failed: {e}")
 
 def view_conversion_history(session):
-    """Shows previous conversions for a user"""
     users = User.get_all(session)
     if not users:
         print("No users in the system yet!")
